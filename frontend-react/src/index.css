@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 min-h-screen text-white antialiased;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-5 py-2.5 rounded-xl font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 transform hover:-translate-y-0.5 hover:shadow-xl;
+  }
+  
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary-500 to-purple-500 text-white hover:from-primary-600 hover:to-purple-600 focus:ring-primary-500 shadow-lg shadow-primary-500/50;
+  }
+  
+  .btn-secondary {
+    @apply bg-slate-800 text-white hover:bg-slate-700 focus:ring-slate-600 border border-slate-700;
+  }
+  
+  .btn-success {
+    @apply bg-gradient-to-r from-teal-500 to-green-500 text-white hover:from-teal-600 hover:to-green-600 focus:ring-teal-500 shadow-lg shadow-teal-500/50;
+  }
+  
+  .btn-danger {
+    @apply bg-gradient-to-r from-red-500 to-pink-500 text-white hover:from-red-600 hover:to-pink-600 focus:ring-red-500 shadow-lg shadow-red-500/50;
+  }
+  
+  .input {
+    @apply w-full px-4 py-3 rounded-xl focus:outline-none transition-all bg-slate-800 border border-slate-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+  }
+  
+  .card {
+    @apply rounded-2xl border p-6 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 bg-slate-900/80 backdrop-blur-sm border-slate-800;
+  }
+  
+  .badge {
+    @apply px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1;
+  }
+
+  .page {
+    @apply max-w-7xl mx-auto px-6 py-8 text-white;
+  }
+
+  .page-header {
+    @apply flex justify-between items-center mb-6;
+  }
+
+  .toolbar {
+    @apply flex items-center gap-4 flex-wrap;
+  }
+}
