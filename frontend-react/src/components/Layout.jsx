@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, CheckSquare, AlertCircle, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, AlertCircle, Users, LogOut, Sparkles } from 'lucide-react';
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -10,6 +10,7 @@ export default function Layout() {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Tasks', href: '/tasks', icon: CheckSquare },
     { name: 'Issues', href: '/issues', icon: AlertCircle },
+    { name: 'Ask AI', href: '/ask-ai', icon: Sparkles },
     { name: 'Users', href: '/users', icon: Users },
   ];
 

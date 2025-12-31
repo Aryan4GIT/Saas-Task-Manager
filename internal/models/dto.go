@@ -74,3 +74,43 @@ type SuccessResponse struct {
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
+
+type UploadDocumentRequest struct {
+	TaskID *string `form:"task_id"`
+	Title  *string `form:"title"`
+}
+
+type VerifyDocumentRequest struct {
+	Question string `json:"question" binding:"required"`
+}
+
+type UpdateDocumentStatusRequest struct {
+	Status string `json:"status" binding:"required"`
+	Notes  string `json:"notes"`
+}
+
+type DocumentSummaryRequest struct {
+	IncludeTaskContext bool `json:"include_task_context"`
+}
+
+type VerifyDocumentCitation struct {
+	ChunkIndex int    `json:"chunk_index"`
+	Snippet    string `json:"snippet"`
+}
+
+type VerifyDocumentResponse struct {
+	Verdict     string                   `json:"verdict"`
+	Confidence  float64                  `json:"confidence"`
+	Answer      string                   `json:"answer"`
+	Citations   []VerifyDocumentCitation `json:"citations"`
+	RawModelOut string                   `json:"raw_model_output,omitempty"`
+}
+
+type DocumentSummaryResponse struct {
+	Summary                    string   `json:"summary"`
+	KeyPoints                  []string `json:"key_points,omitempty"`
+	DocumentType               string   `json:"document_type"`
+	QualityAssessment          string   `json:"quality_assessment"`
+	VerificationRecommendation string   `json:"verification_recommendation"`
+	Notes                      string   `json:"notes,omitempty"`
+}

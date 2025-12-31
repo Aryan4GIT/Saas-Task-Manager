@@ -42,6 +42,7 @@ func (r *TaskRepository) GetByID(orgID, taskID uuid.UUID) (*models.Task, error) 
 		SELECT
 			t.id, t.org_id, t.title, t.description, t.status, t.priority, t.assigned_to, t.created_by, t.due_date, t.created_at, t.updated_at,
 			t.verified_by, t.verified_at, t.approved_by, t.approved_at,
+			t.document_filename, t.document_path, t.document_summary,
 			CASE
 				WHEN au.id IS NULL THEN NULL
 				ELSE CONCAT(COALESCE(au.first_name, ''), ' ', COALESCE(au.last_name, ''))
@@ -82,6 +83,9 @@ func (r *TaskRepository) GetByID(orgID, taskID uuid.UUID) (*models.Task, error) 
 		&task.VerifiedAt,
 		&task.ApprovedBy,
 		&task.ApprovedAt,
+		&task.DocumentFilename,
+		&task.DocumentPath,
+		&task.DocumentSummary,
 		&task.AssignedToName,
 		&task.CreatedByName,
 		&task.VerifiedByName,
@@ -98,6 +102,7 @@ func (r *TaskRepository) List(orgID uuid.UUID, status string, priority string) (
 		SELECT
 			t.id, t.org_id, t.title, t.description, t.status, t.priority, t.assigned_to, t.created_by, t.due_date, t.created_at, t.updated_at,
 			t.verified_by, t.verified_at, t.approved_by, t.approved_at,
+			t.document_filename, t.document_path, t.document_summary,
 			CASE
 				WHEN au.id IS NULL THEN NULL
 				ELSE CONCAT(COALESCE(au.first_name, ''), ' ', COALESCE(au.last_name, ''))
@@ -167,6 +172,9 @@ func (r *TaskRepository) List(orgID uuid.UUID, status string, priority string) (
 			&task.VerifiedAt,
 			&task.ApprovedBy,
 			&task.ApprovedAt,
+			&task.DocumentFilename,
+			&task.DocumentPath,
+			&task.DocumentSummary,
 			&task.AssignedToName,
 			&task.CreatedByName,
 			&task.VerifiedByName,
@@ -184,8 +192,10 @@ func (r *TaskRepository) Update(task *models.Task) error {
 	query := `
 		UPDATE tasks
 		SET title = $1, description = $2, status = $3, priority = $4, assigned_to = $5, due_date = $6,
-			verified_by = $7, verified_at = $8, approved_by = $9, approved_at = $10, updated_at = CURRENT_TIMESTAMP
-		WHERE org_id = $11 AND id = $12
+			verified_by = $7, verified_at = $8, approved_by = $9, approved_at = $10,
+			document_filename = $11, document_path = $12, document_summary = $13,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE org_id = $14 AND id = $15
 	`
 	result, err := r.db.Exec(
 		query,
@@ -199,6 +209,9 @@ func (r *TaskRepository) Update(task *models.Task) error {
 		task.VerifiedAt,
 		task.ApprovedBy,
 		task.ApprovedAt,
+		task.DocumentFilename,
+		task.DocumentPath,
+		task.DocumentSummary,
 		task.OrgID,
 		task.ID,
 	)
@@ -238,6 +251,7 @@ func (r *TaskRepository) ListByAssignee(orgID, userID uuid.UUID) ([]models.Task,
 		SELECT
 			t.id, t.org_id, t.title, t.description, t.status, t.priority, t.assigned_to, t.created_by, t.due_date, t.created_at, t.updated_at,
 			t.verified_by, t.verified_at, t.approved_by, t.approved_at,
+			t.document_filename, t.document_path, t.document_summary,
 			CASE
 				WHEN au.id IS NULL THEN NULL
 				ELSE CONCAT(COALESCE(au.first_name, ''), ' ', COALESCE(au.last_name, ''))
@@ -287,6 +301,9 @@ func (r *TaskRepository) ListByAssignee(orgID, userID uuid.UUID) ([]models.Task,
 			&task.VerifiedAt,
 			&task.ApprovedBy,
 			&task.ApprovedAt,
+			&task.DocumentFilename,
+			&task.DocumentPath,
+			&task.DocumentSummary,
 			&task.AssignedToName,
 			&task.CreatedByName,
 			&task.VerifiedByName,

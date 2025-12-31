@@ -7,6 +7,7 @@ import (
 	"saas-backend/internal/middleware"
 	"saas-backend/internal/models"
 	"saas-backend/internal/service"
+	"saas-backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,90 +26,62 @@ func NewAuthHandler(authService *service.AuthService, cfg *config.Config) *AuthH
 
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req models.RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid request",
-			Message: err.Error(),
-		})
+	if !utils.BindJSON(c, &req) {
 		return
 	}
 
 	response, err := h.authService.Register(&req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "registration failed",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "registration failed", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, response)
+	utils.RespondWithSuccess(c, http.StatusCreated, response)
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req models.LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid request",
-			Message: err.Error(),
-		})
+	if !utils.BindJSON(c, &req) {
 		return
 	}
 
 	response, err := h.authService.Login(&req)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
-			Error:   "login failed",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusUnauthorized, "login failed", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	utils.RespondWithSuccess(c, http.StatusOK, response)
 }
 
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req models.RefreshTokenRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid request",
-			Message: err.Error(),
-		})
+	if !utils.BindJSON(c, &req) {
 		return
 	}
 
 	response, err := h.authService.RefreshToken(req.RefreshToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
-			Error:   "token refresh failed",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusUnauthorized, "token refresh failed", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	utils.RespondWithSuccess(c, http.StatusOK, response)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	userID, ok := middleware.GetUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
-			Error: "user not authenticated",
-		})
+		utils.RespondWithError(c, http.StatusUnauthorized, "user not authenticated", "")
 		return
 	}
 
 	if err := h.authService.Logout(userID); err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "logout failed",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "logout failed", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, models.SuccessResponse{
-		Message: "logged out successfully",
-	})
+	utils.RespondWithMessage(c, http.StatusOK, "logged out successfully")
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
@@ -116,7 +89,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	orgID, _ := middleware.GetOrgID(c)
 	role, _ := middleware.GetRole(c)
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.RespondWithSuccess(c, http.StatusOK, gin.H{
 		"user_id": userID,
 		"org_id":  orgID,
 		"role":    role,

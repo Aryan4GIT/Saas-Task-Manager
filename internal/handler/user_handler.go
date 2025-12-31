@@ -6,9 +6,9 @@ import (
 	"saas-backend/internal/middleware"
 	"saas-backend/internal/models"
 	"saas-backend/internal/service"
+	"saas-backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type UserHandler struct {
@@ -26,47 +26,33 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 
 	var req models.CreateUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid request",
-			Message: err.Error(),
-		})
+	if !utils.BindJSON(c, &req) {
 		return
 	}
 
 	user, err := h.userService.CreateUser(orgID, userID, &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "failed to create user",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "failed to create user", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, user)
+	utils.RespondWithSuccess(c, http.StatusCreated, user)
 }
 
 func (h *UserHandler) GetUser(c *gin.Context) {
 	orgID, _ := middleware.GetOrgID(c)
-	userID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid user ID",
-			Message: err.Error(),
-		})
+	userID, ok := utils.ParseUUID(c, "id", "user ID")
+	if !ok {
 		return
 	}
 
 	user, err := h.userService.GetUser(orgID, userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, models.ErrorResponse{
-			Error:   "user not found",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusNotFound, "user not found", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	utils.RespondWithSuccess(c, http.StatusOK, user)
 }
 
 func (h *UserHandler) ListUsers(c *gin.Context) {
@@ -74,70 +60,47 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 
 	users, err := h.userService.ListUsers(orgID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "failed to list users",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "failed to list users", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, users)
+	utils.RespondWithSuccess(c, http.StatusOK, users)
 }
 
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	orgID, _ := middleware.GetOrgID(c)
 	currentUserID, _ := middleware.GetUserID(c)
-	targetUserID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid user ID",
-			Message: err.Error(),
-		})
+	targetUserID, ok := utils.ParseUUID(c, "id", "user ID")
+	if !ok {
 		return
 	}
 
 	var updates models.User
-	if err := c.ShouldBindJSON(&updates); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid request",
-			Message: err.Error(),
-		})
+	if !utils.BindJSON(c, &updates) {
 		return
 	}
 
 	user, err := h.userService.UpdateUser(orgID, targetUserID, currentUserID, &updates)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "failed to update user",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "failed to update user", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	utils.RespondWithSuccess(c, http.StatusOK, user)
 }
 
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	orgID, _ := middleware.GetOrgID(c)
 	currentUserID, _ := middleware.GetUserID(c)
-	targetUserID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid user ID",
-			Message: err.Error(),
-		})
+	targetUserID, ok := utils.ParseUUID(c, "id", "user ID")
+	if !ok {
 		return
 	}
 
 	if err := h.userService.DeleteUser(orgID, targetUserID, currentUserID); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "failed to delete user",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "failed to delete user", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, models.SuccessResponse{
-		Message: "user deleted successfully",
-	})
+	utils.RespondWithMessage(c, http.StatusOK, "user deleted successfully")
 }

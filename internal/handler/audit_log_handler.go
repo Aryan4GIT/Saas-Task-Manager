@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"saas-backend/internal/middleware"
-	"saas-backend/internal/models"
 	"saas-backend/internal/repository"
+	"saas-backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,12 +37,9 @@ func (h *AuditLogHandler) List(c *gin.Context) {
 
 	logs, err := h.auditRepo.List(orgID, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "failed to list audit logs",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "failed to list audit logs", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, logs)
+	utils.RespondWithSuccess(c, http.StatusOK, logs)
 }

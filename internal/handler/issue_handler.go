@@ -6,9 +6,9 @@ import (
 	"saas-backend/internal/middleware"
 	"saas-backend/internal/models"
 	"saas-backend/internal/service"
+	"saas-backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type IssueHandler struct {
@@ -26,52 +26,35 @@ func (h *IssueHandler) CreateIssue(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 
 	var req models.CreateIssueRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid request",
-			Message: err.Error(),
-		})
+	if !utils.BindJSON(c, &req) {
 		return
 	}
 
 	issue, err := h.issueService.CreateIssue(orgID, userID, &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "failed to create issue",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusBadRequest, "failed to create issue", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, issue)
+	utils.RespondWithSuccess(c, http.StatusCreated, issue)
 }
 
 func (h *IssueHandler) GetIssue(c *gin.Context) {
 	orgID, _ := middleware.GetOrgID(c)
 	userID, _ := middleware.GetUserID(c)
 	role, _ := middleware.GetRole(c)
-	issueID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid issue ID",
-			Message: err.Error(),
-		})
+	issueID, ok := utils.ParseUUID(c, "id", "issue ID")
+	if !ok {
 		return
 	}
 
 	issue, err := h.issueService.GetIssueForRole(orgID, issueID, userID, role)
 	if err != nil {
-		status := http.StatusNotFound
-		errMsg := "issue not found"
-		if err.Error() == "insufficient permissions" {
-			status = http.StatusForbidden
-			errMsg = "insufficient permissions"
-		}
-		c.JSON(status, models.ErrorResponse{Error: errMsg, Message: err.Error()})
+		utils.HandlePermissionError(c, err, "issue not found")
 		return
 	}
 
-	c.JSON(http.StatusOK, issue)
+	utils.RespondWithSuccess(c, http.StatusOK, issue)
 }
 
 func (h *IssueHandler) ListIssues(c *gin.Context) {
@@ -83,78 +66,49 @@ func (h *IssueHandler) ListIssues(c *gin.Context) {
 
 	issues, err := h.issueService.ListIssuesForRole(orgID, userID, role, status, severity)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			Error:   "failed to list issues",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "failed to list issues", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, issues)
+	utils.RespondWithSuccess(c, http.StatusOK, issues)
 }
 
 func (h *IssueHandler) UpdateIssue(c *gin.Context) {
 	orgID, _ := middleware.GetOrgID(c)
 	userID, _ := middleware.GetUserID(c)
 	role, _ := middleware.GetRole(c)
-	issueID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid issue ID",
-			Message: err.Error(),
-		})
+	issueID, ok := utils.ParseUUID(c, "id", "issue ID")
+	if !ok {
 		return
 	}
 
 	var req models.UpdateIssueRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid request",
-			Message: err.Error(),
-		})
+	if !utils.BindJSON(c, &req) {
 		return
 	}
 
 	issue, err := h.issueService.UpdateIssueForRole(orgID, issueID, userID, role, &req)
 	if err != nil {
-		status := http.StatusBadRequest
-		errMsg := "failed to update issue"
-		if err.Error() == "insufficient permissions" {
-			status = http.StatusForbidden
-			errMsg = "insufficient permissions"
-		}
-		c.JSON(status, models.ErrorResponse{Error: errMsg, Message: err.Error()})
+		utils.HandlePermissionError(c, err, "failed to update issue")
 		return
 	}
 
-	c.JSON(http.StatusOK, issue)
+	utils.RespondWithSuccess(c, http.StatusOK, issue)
 }
 
 func (h *IssueHandler) DeleteIssue(c *gin.Context) {
 	orgID, _ := middleware.GetOrgID(c)
 	userID, _ := middleware.GetUserID(c)
 	role, _ := middleware.GetRole(c)
-	issueID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "invalid issue ID",
-			Message: err.Error(),
-		})
+	issueID, ok := utils.ParseUUID(c, "id", "issue ID")
+	if !ok {
 		return
 	}
 
 	if err := h.issueService.DeleteIssueForRole(orgID, issueID, userID, role); err != nil {
-		status := http.StatusBadRequest
-		errMsg := "failed to delete issue"
-		if err.Error() == "insufficient permissions" {
-			status = http.StatusForbidden
-			errMsg = "insufficient permissions"
-		}
-		c.JSON(status, models.ErrorResponse{Error: errMsg, Message: err.Error()})
+		utils.HandlePermissionError(c, err, "failed to delete issue")
 		return
 	}
 
-	c.JSON(http.StatusOK, models.SuccessResponse{
-		Message: "issue deleted successfully",
-	})
+	utils.RespondWithMessage(c, http.StatusOK, "issue deleted successfully")
 }

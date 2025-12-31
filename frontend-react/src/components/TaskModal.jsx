@@ -23,6 +23,23 @@ export default function TaskModal({ task, onClose }) {
     return currentUser?.role === 'admin' || currentUser?.role === 'manager';
   }, [currentUser?.role]);
 
+  const isAdmin = useMemo(() => {
+    return currentUser?.role === 'admin';
+  }, [currentUser?.role]);
+
+  // Filter users based on role - Admin can assign to managers/members, Manager only to members
+  const assignableUsers = useMemo(() => {
+    if (!users || users.length === 0) return [];
+    
+    // Admin can assign to anyone (managers and members)
+    if (isAdmin) {
+      return users.filter(u => u.role === 'manager' || u.role === 'member');
+    }
+    
+    // Manager can only assign to members
+    return users.filter(u => u.role === 'member');
+  }, [users, isAdmin]);
+
   useEffect(() => {
     if (task) {
       setFormData({
@@ -183,6 +200,11 @@ export default function TaskModal({ task, onClose }) {
             <div>
               <label htmlFor="assigned_to" className="block text-sm font-medium text-gray-700 mb-2">
                 Assign To
+                {currentUser?.role === 'manager' && (
+                  <span className="ml-2 text-xs text-indigo-600 font-normal">
+                    (You can assign to yourself or team members)
+                  </span>
+                )}
               </label>
               <select
                 id="assigned_to"
@@ -191,10 +213,17 @@ export default function TaskModal({ task, onClose }) {
                 onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
                 disabled={usersLoading}
               >
-                <option value="">Unassigned</option>
-                {users.map((u) => (
+                <option value="">{isAdmin ? 'Unassigned (Admin will handle)' : 'Unassigned'}</option>
+                {isAdmin && assignableUsers.filter(u => u.role === 'manager').length > 0 && <option disabled>── Managers ──</option>}
+                {assignableUsers.filter(u => u.role === 'manager').map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.first_name} {u.last_name} ({u.role})
+                    👔 {u.first_name} {u.last_name} (Manager)
+                  </option>
+                ))}
+                {assignableUsers.filter(u => u.role === 'member').length > 0 && <option disabled>── Members ──</option>}
+                {assignableUsers.filter(u => u.role === 'member').map((u) => (
+                  <option key={u.id} value={u.id}>
+                    👤 {u.first_name} {u.last_name} (Member)
                   </option>
                 ))}
               </select>

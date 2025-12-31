@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"saas-backend/internal/middleware"
-	"saas-backend/internal/models"
 	"saas-backend/internal/service"
+	"saas-backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,12 +24,9 @@ func (h *ReportHandler) WeeklySummary(c *gin.Context) {
 
 	summary, err := h.reportService.GenerateWeeklySummary(orgID, userID)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, models.ErrorResponse{
-			Error:   "AI summary unavailable",
-			Message: err.Error(),
-		})
+		utils.RespondWithError(c, http.StatusServiceUnavailable, "AI summary unavailable", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"summary": summary})
+	utils.RespondWithSuccess(c, http.StatusOK, gin.H{"summary": summary})
 }

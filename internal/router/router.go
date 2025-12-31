@@ -4,6 +4,7 @@ import (
 	"saas-backend/config"
 	"saas-backend/internal/handler"
 	"saas-backend/internal/middleware"
+	"saas-backend/internal/rag"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,11 +18,14 @@ func SetupRoutes(
 	userHandler *handler.UserHandler,
 	reportHandler *handler.ReportHandler,
 	auditLogHandler *handler.AuditLogHandler,
+	documentHandler *handler.DocumentHandler,
+	ragHandler *rag.Handler,
 ) {
 	// Apply global middleware
 	r.Use(middleware.CORS(cfg))
 	r.Use(middleware.Logger())
 	r.Use(gin.Recovery())
+	r.Use(middleware.RateLimit()) // Apply rate limiting globally
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
@@ -64,6 +68,8 @@ func SetupRoutes(
 				tasks.POST("/:id/verify", taskHandler.VerifyTask)
 				tasks.POST("/:id/approve", taskHandler.ApproveTask)
 				tasks.POST("/:id/reject", taskHandler.RejectTask)
+				// Documents by task
+				tasks.GET("/:id/documents", documentHandler.ListByTask)
 			}
 
 			// Issue routes
@@ -99,6 +105,28 @@ func SetupRoutes(
 				users.GET("/:id", userHandler.GetUser)
 				users.PATCH("/:id", userHandler.UpdateUser)
 				users.DELETE("/:id", middleware.RequireRole("admin"), userHandler.DeleteUser)
+			}
+
+			// Documents with workflow
+			documents := protected.Group("/documents")
+			{
+				documents.GET("", documentHandler.List)
+				documents.GET("/pending", middleware.RequireRole("admin", "manager"), documentHandler.ListPending)
+				documents.GET("/:id", documentHandler.GetByID)
+				documents.POST("/upload", middleware.RateLimitUpload(), documentHandler.Upload)
+				documents.POST("/:id/verify", documentHandler.Verify)
+				documents.POST("/:id/summary", middleware.RateLimitAI(), middleware.RequireRole("admin", "manager"), documentHandler.GenerateSummary)
+				documents.PATCH("/:id/status", middleware.RequireRole("admin", "manager"), documentHandler.UpdateStatus)
+			}
+
+			// RAG query endpoint (all authenticated users)
+			if ragHandler != nil {
+				ragGroup := protected.Group("/rag")
+				ragGroup.Use(middleware.RateLimitAI())
+				{
+					ragGroup.POST("/query", ragHandler.Query)
+					ragGroup.POST("/backfill", middleware.RequireRole("admin"), ragHandler.Backfill)
+				}
 			}
 		}
 	}

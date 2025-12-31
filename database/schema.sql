@@ -125,3 +125,36 @@ CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
 
 CREATE TRIGGER update_issues_updated_at BEFORE UPDATE ON issues
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Documents (for upload + RAG verification)
+CREATE TABLE IF NOT EXISTS documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    title VARCHAR(255),
+    filename VARCHAR(512) NOT NULL,
+    mime_type VARCHAR(255),
+    file_size BIGINT NOT NULL DEFAULT 0,
+    sha256 VARCHAR(64) NOT NULL,
+    storage_path TEXT NOT NULL,
+    extracted_text TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS document_chunks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    chunk_index INT NOT NULL,
+    content TEXT NOT NULL,
+    embedding JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(document_id, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_documents_org_id ON documents(org_id);
+CREATE INDEX IF NOT EXISTS idx_documents_uploaded_by ON documents(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_document_chunks_doc_id ON document_chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_document_chunks_org_id ON document_chunks(org_id);

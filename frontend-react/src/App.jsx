@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
 import Issues from './pages/Issues';
 import Users from './pages/Users';
+import AskAI from './pages/AskAI';
 import Layout from './components/Layout';
 
 const PrivateRoute = ({ children }) => {
@@ -75,6 +76,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="issues" element={<Issues />} />
+          <Route path="ask-ai" element={<AskAI />} />
           <Route path="users" element={<Users />} />
         </Route>
 

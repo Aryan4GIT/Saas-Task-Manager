@@ -1,12 +1,15 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
+	"saas-backend/internal/ai"
 	"saas-backend/internal/models"
+	"saas-backend/internal/rag"
 	"saas-backend/internal/repository"
 
 	"github.com/google/uuid"
@@ -16,19 +19,23 @@ type TaskService struct {
 	taskRepo      *repository.TaskRepository
 	auditLogRepo  *repository.AuditLogRepository
 	geminiService *GeminiService
+	langChainSvc  *ai.LangChainService
+	ragIndexer    *rag.Indexer
 }
 
-func NewTaskService(taskRepo *repository.TaskRepository, auditLogRepo *repository.AuditLogRepository, geminiService *GeminiService) *TaskService {
+func NewTaskService(taskRepo *repository.TaskRepository, auditLogRepo *repository.AuditLogRepository, geminiService *GeminiService, langChainSvc *ai.LangChainService, ragIndexer *rag.Indexer) *TaskService {
 	return &TaskService{
 		taskRepo:      taskRepo,
 		auditLogRepo:  auditLogRepo,
 		geminiService: geminiService,
+		langChainSvc:  langChainSvc,
+		ragIndexer:    ragIndexer,
 	}
 }
 
 func (s *TaskService) GenerateAdminTaskReport(orgID uuid.UUID) (string, error) {
-	if s.geminiService == nil {
-		return "", fmt.Errorf("Gemini service not configured")
+	if s.langChainSvc == nil && s.geminiService == nil {
+		return "", fmt.Errorf("AI service not configured")
 	}
 
 	tasks, err := s.taskRepo.List(orgID, "", "")
@@ -78,7 +85,20 @@ func (s *TaskService) GenerateAdminTaskReport(orgID uuid.UUID) (string, error) {
 		lines = append(lines, fmt.Sprintf("%d. [%s/%s] %s (assignee: %s, due: %s)", i+1, t.Status, t.Priority, t.Title, assignee, due))
 	}
 
-	prompt := fmt.Sprintf(`You are an operations assistant helping an admin summarize the organization's task workload.
+	taskData := fmt.Sprintf(`Counts by status: %v
+Counts by priority: %v
+Overdue (non-approved): %d
+Due within 48h: %d
+Most recently updated tasks:
+%s`, statusCounts, priorityCounts, overdueCount, dueSoonCount, strings.Join(lines, "\n"))
+
+	var report string
+	if s.langChainSvc != nil {
+		prompt := ai.AdminReportPrompt(taskData)
+		report, err = s.langChainSvc.GenerateText(context.Background(), prompt)
+	} else {
+		// Fallback to old Gemini service
+		prompt := fmt.Sprintf(`You are an operations assistant helping an admin summarize the organization's task workload.
 
 Write a concise admin report in Markdown format using only headings (##, ###) and numbered lists (1., 2., 3., ...).
 Do not use asterisks, dashes, or bullet points anywhere.
@@ -103,15 +123,11 @@ List up to %d tasks as a numbered list, using this format for each:
     [status/priority] title (assignee: name, due: date)
 
 Data:
-Counts by status: %v
-Counts by priority: %v
-Overdue (non-approved): %d
-Due within 48h: %d
-Most recently updated tasks:
 %s
-`, maxTasks, statusCounts, priorityCounts, overdueCount, dueSoonCount, strings.Join(lines, "\n"))
+`, maxTasks, taskData)
+		report, err = s.geminiService.GenerateText(prompt)
+	}
 
-	report, err := s.geminiService.GenerateText(prompt)
 	if err != nil {
 		return "", err
 	}
@@ -151,6 +167,11 @@ func (s *TaskService) CreateTask(orgID, createdBy uuid.UUID, req *models.CreateT
 
 	if err := s.taskRepo.Create(task); err != nil {
 		return nil, fmt.Errorf("failed to create task: %w", err)
+	}
+
+	// Index task for RAG
+	if s.ragIndexer != nil {
+		s.ragIndexer.IndexTask(context.Background(), task.OrgID, task.ID, task.Title, task.Description)
 	}
 
 	// Create audit log
@@ -298,6 +319,11 @@ func (s *TaskService) UpdateTask(orgID, taskID, userID uuid.UUID, req *models.Up
 		return nil, fmt.Errorf("failed to update task: %w", err)
 	}
 
+	// Re-index task for RAG
+	if s.ragIndexer != nil {
+		s.ragIndexer.IndexTask(context.Background(), task.OrgID, task.ID, task.Title, task.Description)
+	}
+
 	// Create audit log
 	auditLog := &models.AuditLog{
 		ID:         uuid.New(),
@@ -352,6 +378,11 @@ func (s *TaskService) DeleteTask(orgID, taskID, userID uuid.UUID) error {
 	}
 	_ = s.auditLogRepo.Create(auditLog)
 
+	// Delete from RAG index
+	if s.ragIndexer != nil {
+		s.ragIndexer.DeleteTask(context.Background(), orgID, taskID)
+	}
+
 	return nil
 }
 
@@ -393,6 +424,155 @@ func (s *TaskService) MarkDone(orgID, taskID, userID uuid.UUID) (*models.Task, e
 		Action:     "mark_done",
 		EntityType: "task",
 		EntityID:   &task.ID,
+	}
+	_ = s.auditLogRepo.Create(auditLog)
+
+	return task, nil
+}
+
+// MarkDoneWithDocument - Member marks task as done with document upload
+func (s *TaskService) MarkDoneWithDocument(orgID, taskID, userID uuid.UUID, filename, filepath, content string) (*models.Task, error) {
+	task, err := s.taskRepo.GetByID(orgID, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task: %w", err)
+	}
+	if task == nil {
+		return nil, fmt.Errorf("task not found")
+	}
+	if task.AssignedTo == nil || *task.AssignedTo != userID {
+		return nil, fmt.Errorf("insufficient permissions")
+	}
+
+	// Only allow marking as done if in_progress or todo
+	if task.Status != "todo" && task.Status != "in_progress" {
+		return nil, fmt.Errorf("task must be in todo or in_progress status to mark as done")
+	}
+
+	// Update task immediately with document info
+	task.Status = "done"
+	task.DocumentFilename = &filename
+	task.DocumentPath = &filepath
+	
+	// Set initial processing message
+	if content != "" {
+		processingMsg := "⏳ AI summary is being generated..."
+		task.DocumentSummary = &processingMsg
+	}
+
+	if err := s.taskRepo.Update(task); err != nil {
+		return nil, fmt.Errorf("failed to update task: %w", err)
+	}
+
+	// Generate AI summary asynchronously (don't block HTTP response)
+	if content != "" && (s.langChainSvc != nil || s.geminiService != nil) {
+		// Capture variables for goroutine
+		capturedOrgID := orgID
+		capturedTaskID := taskID
+		capturedFilename := filename
+		capturedContent := content
+		capturedTitle := task.Title
+
+		go func() {
+			// Recover from panics in goroutine
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Panic in AI summary generation for task %s: %v\n", capturedTaskID, r)
+				}
+			}()
+
+			ctx := context.Background()
+			var summary string
+
+			fmt.Printf("Starting AI summary generation for task %s (content length: %d bytes)\n", capturedTaskID, len(capturedContent))
+
+			// Try LangChain first
+			if s.langChainSvc != nil {
+				prompt := ai.TaskSummaryPrompt(capturedTitle, capturedContent)
+				aiSummary, err := s.langChainSvc.GenerateText(ctx, prompt)
+				if err == nil {
+					summary = strings.TrimSpace(aiSummary)
+					summary = strings.TrimPrefix(summary, "Summary:")
+					summary = strings.TrimPrefix(summary, "SUMMARY:")
+					summary = strings.TrimPrefix(summary, "RESPONSE:")
+					summary = strings.TrimSpace(summary)
+					fmt.Printf("✓ LangChain generated summary for task %s\n", capturedTaskID)
+				} else {
+					fmt.Printf("LangChain AI summary failed for task %s: %v\n", capturedTaskID, err)
+				}
+			}
+
+			// Fallback to Gemini service
+			if summary == "" && s.geminiService != nil {
+				prompt := fmt.Sprintf(`You are an assistant helping managers review task completion documents. 
+Analyze the following document submitted for task "%s" and provide a concise summary (3-5 sentences) covering:
+1. Main deliverables or outcomes
+2. Key findings or results
+3. Any notable points for review
+
+Document content:
+%s
+
+Provide ONLY the summary text, no additional formatting or preamble.`, capturedTitle, capturedContent)
+
+				aiSummary, err := s.geminiService.GenerateText(prompt)
+				if err == nil {
+					summary = strings.TrimSpace(aiSummary)
+					summary = strings.TrimPrefix(summary, "Summary:")
+					summary = strings.TrimPrefix(summary, "SUMMARY:")
+					summary = strings.TrimSpace(summary)
+					fmt.Printf("✓ Gemini generated summary for task %s\n", capturedTaskID)
+				} else {
+					fmt.Printf("Gemini AI summary failed for task %s: %v\n", capturedTaskID, err)
+				}
+			}
+
+			// Update task with generated summary
+			if summary != "" {
+				updatedTask, err := s.taskRepo.GetByID(capturedOrgID, capturedTaskID)
+				if err != nil {
+					fmt.Printf("Failed to fetch task %s for summary update: %v\n", capturedTaskID, err)
+					return
+				}
+				if updatedTask != nil {
+					updatedTask.DocumentSummary = &summary
+					if err := s.taskRepo.Update(updatedTask); err != nil {
+						fmt.Printf("Failed to update task %s with AI summary: %v\n", capturedTaskID, err)
+					} else {
+						fmt.Printf("✓ Successfully updated task %s with AI summary\n", capturedTaskID)
+					}
+				}
+			} else {
+				// Failed to generate - update with fallback message
+				fmt.Printf("No summary generated for task %s, using fallback\n", capturedTaskID)
+				updatedTask, err := s.taskRepo.GetByID(capturedOrgID, capturedTaskID)
+				if err == nil && updatedTask != nil {
+					fallback := fmt.Sprintf("Document uploaded: %s", capturedFilename)
+					updatedTask.DocumentSummary = &fallback
+					s.taskRepo.Update(updatedTask)
+				}
+			}
+		}()
+	}
+
+	// Index document in RAG if available (async, don't block on errors)
+	if s.ragIndexer != nil && content != "" {
+		go func() {
+			ctx := context.Background()
+			s.ragIndexer.IndexTaskDocument(ctx, orgID, taskID, filename, content)
+		}()
+	}
+
+	// Audit log
+	auditLog := &models.AuditLog{
+		ID:         uuid.New(),
+		OrgID:      orgID,
+		UserID:     &userID,
+		Action:     "mark_done_with_document",
+		EntityType: "task",
+		EntityID:   &task.ID,
+		Details: map[string]interface{}{
+			"filename": filename,
+		},
 	}
 	_ = s.auditLogRepo.Create(auditLog)
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { taskService, issueService, reportService, auditLogService } from '../services/api.service';
+import { taskService, issueService, reportService } from '../services/api.service';
 import { CheckSquare, AlertCircle, Clock, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -17,7 +17,6 @@ export default function Dashboard() {
 
   const [weeklySummary, setWeeklySummary] = useState('');
   const [weeklySummaryLoading, setWeeklySummaryLoading] = useState(false);
-  const [auditLogs, setAuditLogs] = useState([]);
 
   useEffect(() => {
     loadDashboardData();
@@ -25,12 +24,11 @@ export default function Dashboard() {
 
   const loadDashboardData = async () => {
     try {
-      const [tasksRes, myTasksRes, issuesRes, completedRes, auditRes] = await Promise.all([
+      const [tasksRes, myTasksRes, issuesRes, completedRes] = await Promise.all([
         taskService.getTasks(),
         taskService.getMyTasks(),
         issueService.getIssues({ status: 'open' }),
         taskService.getTasks({ status: 'completed' }),
-        userRole === 'admin' ? auditLogService.list(10) : Promise.resolve({ data: [] }),
       ]);
 
       // Helper to extract array from response
@@ -46,7 +44,6 @@ export default function Dashboard() {
         completedTasks: extractArray(completedRes).length,
       });
 
-      setAuditLogs(Array.isArray(auditRes.data) ? auditRes.data : (auditRes.data?.data || []));
       console.log('[Dashboard] Stats loaded');
     } catch (error) {
       console.error('[Dashboard] Failed to load data:', error);
@@ -215,28 +212,6 @@ export default function Dashboard() {
                 </div>
               </li>
             </ul>
-          </div>
-        )}
-
-        {userRole === 'admin' && (
-          <div className="card">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Audit Logs</h3>
-            {auditLogs.length === 0 ? (
-              <p className="text-sm text-gray-500">No audit logs found.</p>
-            ) : (
-              <div className="space-y-2">
-                {auditLogs.slice(0, 10).map((log) => (
-                  <div key={log.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <div className="text-sm text-gray-700">
-                      <span className="font-semibold">{log.action}</span> {log.entity_type}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {log.created_at ? new Date(log.created_at).toLocaleString() : ''}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>

@@ -72,9 +72,20 @@ export const taskService = {
   },
 
   // Workflow actions
-  async markDone(id) {
-    const response = await api.post(`/tasks/${id}/done`);
-    return response;
+  async markDone(id, formData = null) {
+    if (formData) {
+      // With file upload
+      const response = await api.post(`/tasks/${id}/done`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response;
+    } else {
+      // Without file upload
+      const response = await api.post(`/tasks/${id}/done`);
+      return response;
+    }
   },
 
   async verifyTask(id) {
@@ -157,6 +168,69 @@ export const reportService = {
 export const auditLogService = {
   async list(limit = 50) {
     const response = await api.get('/audit-logs', { params: { limit } });
+    return response;
+  },
+};
+
+export const documentService = {
+  async listDocuments(limit = 50) {
+    const response = await api.get('/documents', { params: { limit } });
+    return response;
+  },
+
+  async listPendingDocuments(limit = 50) {
+    const response = await api.get('/documents/pending', { params: { limit } });
+    return response;
+  },
+
+  async getDocument(id) {
+    const response = await api.get(`/documents/${id}`);
+    return response;
+  },
+
+  async listDocumentsByTask(taskId, limit = 50) {
+    const response = await api.get(`/tasks/${taskId}/documents`, { params: { limit } });
+    return response;
+  },
+
+  async uploadDocument(file, title, taskId = null) {
+    const form = new FormData();
+    form.append('file', file);
+    if (title) form.append('title', title);
+    if (taskId) form.append('task_id', taskId);
+    const response = await api.post('/documents/upload', form, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 60000,
+    });
+    return response;
+  },
+
+  async verifyDocument(id, question) {
+    const response = await api.post(`/documents/${id}/verify`, { question }, { timeout: 60000 });
+    return response;
+  },
+
+  async generateSummary(id) {
+    const response = await api.post(`/documents/${id}/summary`, {}, { timeout: 60000 });
+    return response;
+  },
+
+  async updateDocumentStatus(id, status, notes = '') {
+    const response = await api.patch(`/documents/${id}/status`, { status, notes });
+    return response;
+  },
+};
+
+export const ragService = {
+  async query(question) {
+    const response = await api.post('/rag/query', { question }, { timeout: 60000 });
+    return response;
+  },
+
+  async backfill() {
+    const response = await api.post('/rag/backfill', {}, { timeout: 120000 });
     return response;
   },
 };

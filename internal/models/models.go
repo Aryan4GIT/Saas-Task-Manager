@@ -38,25 +38,28 @@ type RefreshToken struct {
 }
 
 type Task struct {
-	ID             uuid.UUID  `json:"id"`
-	OrgID          uuid.UUID  `json:"org_id"`
-	Title          string     `json:"title"`
-	Description    string     `json:"description"`
-	Status         string     `json:"status"` // todo, in_progress, done, verified, approved
-	Priority       string     `json:"priority"`
-	AssignedTo     *uuid.UUID `json:"assigned_to,omitempty"`
-	AssignedToName *string    `json:"assigned_to_name,omitempty"`
-	CreatedBy      uuid.UUID  `json:"created_by"`
-	CreatedByName  *string    `json:"created_by_name,omitempty"`
-	VerifiedBy     *uuid.UUID `json:"verified_by,omitempty"`
-	VerifiedByName *string    `json:"verified_by_name,omitempty"`
-	VerifiedAt     *time.Time `json:"verified_at,omitempty"`
-	ApprovedBy     *uuid.UUID `json:"approved_by,omitempty"`
-	ApprovedByName *string    `json:"approved_by_name,omitempty"`
-	ApprovedAt     *time.Time `json:"approved_at,omitempty"`
-	DueDate        *time.Time `json:"due_date,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID              uuid.UUID  `json:"id"`
+	OrgID           uuid.UUID  `json:"org_id"`
+	Title           string     `json:"title"`
+	Description     string     `json:"description"`
+	Status          string     `json:"status"` // todo, in_progress, done, verified, approved
+	Priority        string     `json:"priority"`
+	AssignedTo      *uuid.UUID `json:"assigned_to,omitempty"`
+	AssignedToName  *string    `json:"assigned_to_name,omitempty"`
+	CreatedBy       uuid.UUID  `json:"created_by"`
+	CreatedByName   *string    `json:"created_by_name,omitempty"`
+	VerifiedBy      *uuid.UUID `json:"verified_by,omitempty"`
+	VerifiedByName  *string    `json:"verified_by_name,omitempty"`
+	VerifiedAt      *time.Time `json:"verified_at,omitempty"`
+	ApprovedBy      *uuid.UUID `json:"approved_by,omitempty"`
+	ApprovedByName  *string    `json:"approved_by_name,omitempty"`
+	ApprovedAt      *time.Time `json:"approved_at,omitempty"`
+	DocumentFilename *string   `json:"document_filename,omitempty"`
+	DocumentPath    *string    `json:"document_path,omitempty"`
+	DocumentSummary *string    `json:"document_summary,omitempty"`
+	DueDate         *time.Time `json:"due_date,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type Issue struct {
@@ -86,4 +89,35 @@ type AuditLog struct {
 	Details    map[string]interface{} `json:"details,omitempty"`
 	IPAddress  *string                `json:"ip_address,omitempty"`
 	CreatedAt  time.Time              `json:"created_at"`
+}
+
+type Document struct {
+	ID                uuid.UUID  `json:"id"`
+	OrgID             uuid.UUID  `json:"org_id"`
+	TaskID            *uuid.UUID `json:"task_id,omitempty"`
+	UploadedBy        *uuid.UUID `json:"uploaded_by,omitempty"`
+	UploadedByName    *string    `json:"uploaded_by_name,omitempty"`
+	Title             *string    `json:"title,omitempty"`
+	Filename          string     `json:"filename"`
+	MimeType          *string    `json:"mime_type,omitempty"`
+	FileSize          int64      `json:"file_size"`
+	SHA256            string     `json:"sha256"`
+	StoragePath       string     `json:"-"`
+	ExtractedText     *string    `json:"-"`
+	Status            string     `json:"status"`
+	VerifiedBy        *uuid.UUID `json:"verified_by,omitempty"`
+	VerifiedByName    *string    `json:"verified_by_name,omitempty"`
+	VerifiedAt        *time.Time `json:"verified_at,omitempty"`
+	VerificationNotes *string    `json:"verification_notes,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+}
+
+type DocumentChunk struct {
+	ID         uuid.UUID `json:"id"`
+	OrgID      uuid.UUID `json:"org_id"`
+	DocumentID uuid.UUID `json:"document_id"`
+	ChunkIndex int       `json:"chunk_index"`
+	Content    string    `json:"content"`
+	CreatedAt  time.Time `json:"created_at"`
 }

@@ -1,10 +1,12 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"saas-backend/internal/models"
+	"saas-backend/internal/rag"
 	"saas-backend/internal/repository"
 
 	"github.com/google/uuid"
@@ -14,17 +16,20 @@ type IssueService struct {
 	issueRepo     *repository.IssueRepository
 	auditLogRepo  *repository.AuditLogRepository
 	geminiService *GeminiService
+	ragIndexer    *rag.Indexer
 }
 
 func NewIssueService(
 	issueRepo *repository.IssueRepository,
 	auditLogRepo *repository.AuditLogRepository,
 	geminiService *GeminiService,
+	ragIndexer *rag.Indexer,
 ) *IssueService {
 	return &IssueService{
 		issueRepo:     issueRepo,
 		auditLogRepo:  auditLogRepo,
 		geminiService: geminiService,
+		ragIndexer:    ragIndexer,
 	}
 }
 
@@ -58,6 +63,11 @@ func (s *IssueService) CreateIssue(orgID, reportedBy uuid.UUID, req *models.Crea
 
 	if err := s.issueRepo.Create(issue); err != nil {
 		return nil, fmt.Errorf("failed to create issue: %w", err)
+	}
+
+	// Index issue for RAG
+	if s.ragIndexer != nil {
+		s.ragIndexer.IndexIssue(context.Background(), issue.OrgID, issue.ID, issue.Title, issue.Description)
 	}
 
 	// Create audit log
@@ -179,6 +189,11 @@ func (s *IssueService) UpdateIssueForRole(orgID, issueID, userID uuid.UUID, role
 		return nil, fmt.Errorf("failed to update issue: %w", err)
 	}
 
+	// Re-index issue for RAG
+	if s.ragIndexer != nil {
+		s.ragIndexer.IndexIssue(context.Background(), issue.OrgID, issue.ID, issue.Title, issue.Description)
+	}
+
 	// Create audit log
 	auditLog := &models.AuditLog{
 		ID:         uuid.New(),
@@ -211,6 +226,11 @@ func (s *IssueService) DeleteIssueForRole(orgID, issueID, userID uuid.UUID, role
 		EntityID:   &issueID,
 	}
 	_ = s.auditLogRepo.Create(auditLog)
+
+	// Delete from RAG index
+	if s.ragIndexer != nil {
+		s.ragIndexer.DeleteIssue(context.Background(), orgID, issueID)
+	}
 
 	return nil
 }

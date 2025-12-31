@@ -19,8 +19,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port string
-	Env  string
+	Port      string
+	Env       string
+	UploadDir string
 }
 
 type DatabaseConfig struct {
@@ -40,8 +41,9 @@ type JWTConfig struct {
 }
 
 type GeminiConfig struct {
-	APIKey string
-	Model  string
+	APIKey         string
+	Model          string
+	EmbeddingModel string
 }
 
 type CORSConfig struct {
@@ -81,8 +83,9 @@ func Load() (*Config, error) {
 
 	config := &Config{
 		Server: ServerConfig{
-			Port: getEnv("PORT", "8080"),
-			Env:  env,
+			Port:      getEnv("PORT", "8080"),
+			Env:       env,
+			UploadDir: getEnv("UPLOAD_DIR", "uploads"),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -99,8 +102,9 @@ func Load() (*Config, error) {
 			RefreshExpiry: refreshExpiry,
 		},
 		Gemini: GeminiConfig{
-			APIKey: getEnv("GEMINI_API_KEY", ""),
-			Model:  getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
+			APIKey:         getEnv("GEMINI_API_KEY", ""),
+			Model:          getEnv("GEMINI_MODEL", "gemini-1.5-pro"),
+			EmbeddingModel: getEnv("GEMINI_EMBEDDING_MODEL", "text-embedding-004"),
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: parseList(getEnv("ALLOWED_ORIGINS", "http://localhost:3000")),

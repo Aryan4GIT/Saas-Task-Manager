@@ -12,8 +12,9 @@ import (
 )
 
 type GeminiService struct {
-	client *genai.Client
-	model  *genai.GenerativeModel
+	client         *genai.Client
+	model          *genai.GenerativeModel
+	embeddingModel *genai.EmbeddingModel
 }
 
 func NewGeminiService(cfg *config.Config) (*GeminiService, error) {
@@ -37,10 +38,33 @@ func NewGeminiService(cfg *config.Config) (*GeminiService, error) {
 	model.SetTopP(0.8)
 	model.SetTopK(40)
 
+	embedModelName := strings.TrimSpace(cfg.Gemini.EmbeddingModel)
+	if embedModelName == "" {
+		embedModelName = "text-embedding-004"
+	}
+	embeddingModel := client.EmbeddingModel(embedModelName)
+
 	return &GeminiService{
-		client: client,
-		model:  model,
+		client:         client,
+		model:          model,
+		embeddingModel: embeddingModel,
 	}, nil
+}
+
+func (s *GeminiService) EmbedText(text string) ([]float32, error) {
+	if s == nil || s.embeddingModel == nil {
+		return nil, fmt.Errorf("Gemini embedding model not configured")
+	}
+
+	ctx := context.Background()
+	resp, err := s.embeddingModel.EmbedContent(ctx, genai.Text(text))
+	if err != nil {
+		return nil, fmt.Errorf("failed to embed content: %w", err)
+	}
+	if resp == nil || resp.Embedding == nil {
+		return nil, fmt.Errorf("no embedding returned")
+	}
+	return resp.Embedding.Values, nil
 }
 
 func (s *GeminiService) GenerateText(prompt string) (string, error) {
